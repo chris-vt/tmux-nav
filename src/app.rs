@@ -42,7 +42,7 @@ impl App {
 
         let (tx, rx) = std::sync::mpsc::channel();
         
-        let mut rx_chan = Some(rx);
+        let rx_chan = Some(rx);
         if let Some(target) = &target_pane {
             crate::ipc::start_listener(target, tx.clone());
         }
