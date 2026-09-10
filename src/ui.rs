@@ -1,21 +1,51 @@
+use crate::app::App;
 use ratatui::{
-    layout::{Constraint, Direction, Layout},
-    widgets::{Block, Borders, Paragraph},
+    style::{Color, Modifier, Style},
+    widgets::{Block, List, ListItem, ListState},
     Frame,
 };
-use crate::app::App;
 
-pub fn draw(f: &mut Frame, _app: &mut App) {
-    let chunks = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(30), Constraint::Percentage(70)].as_ref())
-        .split(f.area());
+pub fn draw(f: &mut Frame, app: &mut App) {
+    let tree_block = Block::default();
 
-    let tree_block = Block::default().title("Tree").borders(Borders::ALL);
-    let tree_para = Paragraph::new("Directory Tree Placeholder").block(tree_block);
-    f.render_widget(tree_para, chunks[0]);
+    let items: Vec<ListItem> = app
+        .items
+        .iter()
+        .map(|item| {
+            let indent = "  ".repeat(item.depth);
+            let icon = if item.is_parent_link {
+                "󰕒"
+            } else if item.is_dir {
+                if item.is_expanded {
+                    ""
+                } else {
+                    ""
+                }
+            } else {
+                ""
+            };
+            let text = format!("{}{} {}", indent, icon, item.name());
+            
+            // Simple styling
+            let style = if item.is_parent_link {
+                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+            } else if item.is_dir {
+                Style::default().fg(Color::Blue).add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(Color::White)
+            };
 
-    let preview_block = Block::default().title("Preview").borders(Borders::ALL);
-    let preview_para = Paragraph::new("Preview Area Placeholder").block(preview_block);
-    f.render_widget(preview_para, chunks[1]);
+            ListItem::new(text).style(style)
+        })
+        .collect();
+
+    let mut state = ListState::default();
+    state.select(Some(app.selected_index));
+
+    let list = List::new(items)
+        .block(tree_block)
+        .highlight_style(Style::default().bg(Color::Rgb(60, 60, 60)).add_modifier(Modifier::BOLD))
+        .highlight_symbol(">> ");
+
+    f.render_stateful_widget(list, f.area(), &mut state);
 }

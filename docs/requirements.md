@@ -14,12 +14,12 @@ A standalone, high-performance TUI companion application running inside a dedica
  │                                         │        │                               │
  │       tmux-nav (Rust TUI binary)        │        │   Interactive zsh session     │
  │                                         │        │                               │
- │ ┌─────────────┐ ┌─────────────────────┐ │        │                               │
- │ │ Tree (30%)  │ │ Preview/Info (70%)  │ │        │   • chpwd hook                │
- │ │             │ │                     │ │        │   • Standard CLI commands     │
- │ │ • crossterm │ │ • eza-like UI       │ │        │                               │
- │ │ • ratatui   │ │                     │ │        │                               │
- │ └─────────────┘ └─────────────────────┘ │        │                               │
+ │ ┌─────────────────────────────────────┐ │        │                               │
+ │ │ Tree (100%)                         │ │        │   • chpwd hook                │
+ │ │                                     │ │        │   • Standard CLI commands     │
+ │ │ • crossterm                         │ │        │                               │
+ │ │ • ratatui                           │ │        │                               │
+ │ └─────────────────────────────────────┘ │        │                               │
  └────────────────────┬────────────────────┘        └───────────────┬───────────────┘
                       │                                             │
                       │ 1. Inbound sync: reads $PWD on chpwd        │
@@ -36,7 +36,7 @@ A standalone, high-performance TUI companion application running inside a dedica
 
 #### F1. Real-Time Viewport & UI Layout
 
-* **Layout**: Two dedicated split panels. The left panel (approx 30% horizontal space) displays the directory tree. The right panel (70%) serves as a preview area.
+* **Layout**: The TUI takes up 100% of its pane and displays an expanding interactive directory tree.
 * **Look and Feel**: Visuals should be heavily inspired by `eza` (icons, colors, clean formatting).
 * **Tree View**: By default, displays only the immediate folders and files in the directory pointed to by the console.
 * Anchor the current directory view strictly at Row 1 (top of the pane), eliminating downward terminal scroll overflow regardless of directory item count.
@@ -45,7 +45,7 @@ A standalone, high-performance TUI companion application running inside a dedica
 #### F2. Input Handling & Interactivity
 
 * **Mouse Interactions** (via `crossterm` mouse tracking):
-  * **Single-Click (Tree)**: Expand/collapse folder contents in a tree-like style. Select and highlight an item to immediately display folder contents or file metadata in the preview panel.
+  * **Single-Click (Tree)**: Expand/collapse folder contents in a tree-like style.
   * **Double-Click (Directory)**: Navigate the companion console into the selected folder (outbound sync).
   * **Double-Click (Parent `..`) / Right-Click**: Ascend to the parent directory.
   * **Scroll Wheel**: Smoothly scroll long directory listings without switching into `tmux` copy-mode.
