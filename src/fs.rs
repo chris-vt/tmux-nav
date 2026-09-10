@@ -29,6 +29,11 @@ pub fn read_dir(path: &Path, depth: usize) -> io::Result<Vec<FsItem>> {
         if let Ok(entries) = fs::read_dir(path) {
             for entry in entries {
                 if let Ok(entry) = entry {
+                    // skip hidden files
+                    if entry.file_name().to_string_lossy().starts_with('.') {
+                        continue;
+                    }
+                    
                     let is_dir = entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false);
                     items.push(FsItem {
                         path: entry.path(),
