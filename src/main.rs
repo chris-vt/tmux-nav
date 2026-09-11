@@ -20,6 +20,9 @@ struct Args {
 
     #[arg(long)]
     init_zsh: bool,
+
+    #[arg(long)]
+    toggle_hidden: Option<String>,
 }
 
 fn main() -> io::Result<()> {
@@ -36,6 +39,22 @@ chpwd() {{
     fi
 }}
 "#);
+        return Ok(());
+    }
+
+    if let Some(target) = args.toggle_hidden {
+        let sock = format!("/tmp/tmux_nav_{}.sock", target);
+        if std::path::Path::new(&sock).exists() {
+            let mut cmd = std::process::Command::new("nc");
+            cmd.args(["-U", "-N", &sock]);
+            use std::io::Write;
+            if let Ok(mut child) = cmd.stdin(std::process::Stdio::piped()).spawn() {
+                if let Some(mut stdin) = child.stdin.take() {
+                    let _ = stdin.write_all(b"!TOGGLE_HIDDEN");
+                }
+                let _ = child.wait();
+            }
+        }
         return Ok(());
     }
 

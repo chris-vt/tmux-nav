@@ -14,12 +14,13 @@ pub struct App {
     pub selected_index: usize,
     pub target_pane: Option<String>,
     pub rx: Option<std::sync::mpsc::Receiver<String>>,
+    pub show_hidden: bool,
     // We hold the watcher to keep it alive
     pub _watcher: Option<notify::RecommendedWatcher>,
 }
 
 impl App {
-    fn read_root(root: &PathBuf) -> io::Result<Vec<FsItem>> {
+    fn read_root(root: &PathBuf, show_hidden: bool) -> io::Result<Vec<FsItem>> {
         let mut items = vec![];
         if let Some(parent) = root.parent() {
             items.push(FsItem {
@@ -30,7 +31,7 @@ impl App {
                 is_parent_link: true,
             });
         }
-        if let Ok(mut children) = read_dir(root, 0) {
+        if let Ok(mut children) = read_dir(root, 0, show_hidden) {
             items.append(&mut children);
         }
         Ok(items)
@@ -38,13 +39,18 @@ impl App {
 
     pub fn new(target_pane: Option<String>) -> io::Result<Self> {
         let root = env::current_dir()?;
-        let items = Self::read_root(&root)?;
+        let items = Self::read_root(&root, false)?;
 
         let (tx, rx) = std::sync::mpsc::channel();
         
         let rx_chan = Some(rx);
         if let Some(target) = &target_pane {
             crate::ipc::start_listener(target, tx.clone());
+        }
+        
+        // Listen on our own pane ID for direct Tmux commands
+        if let Ok(own_pane) = std::env::var("TMUX_PANE") {
+            crate::ipc::start_listener(&own_pane, tx.clone());
         }
 
         // Setup notify
@@ -66,6 +72,7 @@ impl App {
             selected_index: 0,
             target_pane,
             rx: rx_chan,
+            show_hidden: false,
             _watcher: watcher,
         })
     }
@@ -84,7 +91,7 @@ impl App {
             None
         };
 
-        self.items = Self::read_root(&self.root)?;
+        self.items = Self::read_root(&self.root, self.show_hidden)?;
 
         let mut i = 0;
         while i < self.items.len() {
@@ -92,7 +99,7 @@ impl App {
                 self.items[i].is_expanded = true;
                 let path = self.items[i].path.clone();
                 let depth = self.items[i].depth;
-                if let Ok(mut new_items) = read_dir(&path, depth + 1) {
+                if let Ok(mut new_items) = read_dir(&path, depth + 1, self.show_hidden) {
                     let splice_idx = i + 1;
                     let mut tail = self.items.split_off(splice_idx);
                     self.items.append(&mut new_items);
@@ -147,7 +154,7 @@ impl App {
         } else {
             // Expand
             self.items[self.selected_index].is_expanded = true;
-            let mut new_items = read_dir(&path, depth + 1)?;
+            let mut new_items = read_dir(&path, depth + 1, self.show_hidden)?;
             let splice_idx = self.selected_index + 1;
             let mut tail = self.items.split_off(splice_idx);
             self.items.append(&mut new_items);
@@ -196,26 +203,35 @@ impl App {
         if self.items.is_empty() {
             return Ok(());
         }
-        let item = &self.items[self.selected_index];
-        if item.is_dir {
-            let new_root = item.path.clone();
-            self.root = new_root.clone();
-            self.items = Self::read_root(&self.root)?;
-            self.selected_index = 0;
-            
-            // We could update the root watcher here, but relying on inbound IPC or full refresh is safer
 
-            if let Some(target) = &self.target_pane {
-                let mut cmd = std::process::Command::new("tmux");
-                cmd.args([
-                    "send-keys",
-                    "-t",
-                    target,
-                    &format!("cd '{}'\n", new_root.display()),
-                ]);
-                let _ = cmd.output();
-            }
+        let path = self.items[self.selected_index].path.clone();
+        let is_dir = self.items[self.selected_index].is_dir;
+
+        // 1. Update the internal tree state ONLY if it's a directory
+        if is_dir {
+            self.root = path.clone();
+            self.items = Self::read_root(&self.root, self.show_hidden)?;
+            self.selected_index = 0;
         }
+        
+        // 2. Send the commands to Tmux
+        if let Some(target) = &self.target_pane {
+            let mut cmd = std::process::Command::new("tmux");
+            
+            // Decide what text to type into the shell based on the type
+            if is_dir {
+                cmd.args(["send-keys", "-t", target, &format!("cd '{}'\n", path.display())]);
+            } else {
+                cmd.args(["send-keys", "-t", target, &format!("nvim '{}'\n", path.display())]);
+            }
+            let _ = cmd.output();
+            
+            // Switch cursor focus to the target pane for BOTH files and folders!
+            let mut focus_cmd = std::process::Command::new("tmux");
+            focus_cmd.args(["select-pane", "-t", target]);
+            let _ = focus_cmd.output();
+        }
+
         Ok(())
     }
 
@@ -242,6 +258,9 @@ impl App {
                 while let Ok(msg) = rx.try_recv() {
                     if msg == "!REFRESH" {
                         do_refresh = true;
+                    } else if msg == "!TOGGLE_HIDDEN" {
+                        self.show_hidden = !self.show_hidden;
+                        do_refresh = true;
                     } else {
                         new_path = Some(msg);
                     }
@@ -252,7 +271,7 @@ impl App {
                 let new_root = PathBuf::from(msg);
                 if new_root.is_dir() && new_root != self.root {
                     self.root = new_root.clone();
-                    if let Ok(items) = Self::read_root(&self.root) {
+                    if let Ok(items) = Self::read_root(&self.root, self.show_hidden) {
                         self.items = items;
                         self.selected_index = 0;
                         

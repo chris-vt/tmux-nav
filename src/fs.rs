@@ -23,18 +23,22 @@ impl FsItem {
     }
 }
 
-pub fn read_dir(path: &Path, depth: usize) -> io::Result<Vec<FsItem>> {
+pub fn read_dir(path: &Path, depth: usize, show_hidden: bool) -> io::Result<Vec<FsItem>> {
     let mut items = Vec::new();
     if path.is_dir() {
         if let Ok(entries) = fs::read_dir(path) {
             for entry in entries {
                 if let Ok(entry) = entry {
-                    // skip hidden files
-                    if entry.file_name().to_string_lossy().starts_with('.') {
+                    // skip hidden files if show_hidden is false
+                    if !show_hidden && entry.file_name().to_string_lossy().starts_with('.') {
                         continue;
                     }
                     
-                    let is_dir = entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false);
+                    // Check if it's a directory (following symlinks!)
+                    let path = entry.path();
+                    let is_dir = fs::metadata(&path)
+                        .map(|m| m.is_dir())
+                        .unwrap_or(false);
                     items.push(FsItem {
                         path: entry.path(),
                         depth,

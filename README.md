@@ -9,6 +9,7 @@ A lightning-fast, native-feeling directory tree sidebar for Tmux, written in Rus
 - **Two-Way Synchronization**: 
   - **Inbound**: When you `cd` in your shell, the tree automatically updates its root to match your current directory.
   - **Outbound**: When you press `Enter` on a directory in the tree, your companion shell instantly `cd`s into it.
+- **Smart File Launching**: Pressing `Enter` on a text file automatically commands the companion pane to open it in Neovim (`nvim`).
 - **Native Aesthetic**: The bundled integration script completely hides Tmux pane borders, making the sidebar feel like a native application feature rather than a split terminal.
 - **Minimalist Icons**: Uses standard Nerd Font icons (``, ``, ``) to match the clean aesthetic of tools like `eza`.
 - **Zero Input Lag**: Built in Rust with `ratatui` and relies on raw Unix Sockets for instantaneous state updates.
@@ -41,25 +42,60 @@ environment.systemPackages = [
 
 ## Setup & Configuration
 
-To get the intended "seamless sidebar" experience, you need to map a Tmux keybinding to the bundled wrapper script (`tmux-nav-split`), which handles spawning the window, hiding the borders, and hooking up the IPC.
+To get the intended "seamless sidebar" experience, you must configure both your shell and Tmux.
 
-Add the following to your `tmux.conf` (e.g., mapping to `Ctrl + Up`):
+### 1. Zsh Configuration
+For `tmux-nav` to track your current directory, you must add its IPC hook to your `~/.zshrc` (or equivalent Zsh configuration file). This hook safely broadcasts directory changes over a Unix socket whenever you are inside a Tmux pane.
 
-```tmux
-bind -n C-Up run-shell "tmux-nav-split"
+Add the following function to your Zsh configuration:
+
+```bash
+# tmux-nav hook
+chpwd() {
+    if [[ -n "$TMUX_PANE" ]]; then
+        local sock="/tmp/tmux_nav_${TMUX_PANE}.sock"
+        if [[ -S "$sock" ]]; then
+            echo "$PWD" | nc -U -N "$sock" >/dev/null 2>&1 &!
+        fi
+    fi
+}
 ```
 
-*(Note: The `tmux-nav-split` script automatically injects the necessary Zsh IPC hook into the newly created shell pane. If you ever want the hook globally active across all terminals, you can add `eval "$(tmux-nav --init-zsh)"` to your `~/.zshrc`.)*
+### 2. Tmux Configuration
+You need to map keybindings to launch the app and toggle features. Add the following to your `tmux.conf`:
+
+```tmux
+# Launch the sidebar (using the bundled wrapper script)
+bind -n C-Up run-shell "tmux-nav-split"
+
+# Quickly jump back and forth between the tree and shell pane
+bind -n C-o select-pane -t :.+
+
+# Toggle hidden files in the tree from either pane
+bind -n C-p run-shell "tmux-nav --toggle-hidden #{pane_id}"
+```
 
 ## Usage
 
 Hit your configured Tmux bind (e.g., `Ctrl + Up`). A new window will open with `tmux-nav` taking up 15% of the left side of your screen. 
 
+<<<<<<< HEAD
 Your cursor focus will be placed in the shell on the right, but you can jump back to the tree sidebar at any time using your standard Tmux pane navigation keys.
+=======
+Your cursor focus will be placed in the shell on the right, but you can jump back to the tree sidebar at any time using your standard Tmux pane navigation keys (or your `Ctrl + o` bind).
+>>>>>>> dev
 
 **Keyboard Controls in `tmux-nav`**:
 - `Up` / `Down`: Navigate the file tree
 - `Right`: Expand a directory
 - `Left`: Collapse a directory
+<<<<<<< HEAD
 - `Enter`: Command the companion shell to change directory into the currently selected folder
 - `Ctrl + C`: Exit
+=======
+- `Enter`: 
+  - On a **folder**: Commands the companion shell to `cd` into it
+  - On a **file**: Commands the companion shell to open it in `nvim`
+- `Ctrl + p`: Toggle hidden files (dotfiles)
+- `Ctrl + c`: Exit
+>>>>>>> dev
