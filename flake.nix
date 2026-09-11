@@ -23,7 +23,7 @@
       packages = forEachSystem ({ pkgs }: {
         default = pkgs.rustPlatform.buildRustPackage {
           pname = "tmux-nav";
-          version = "0.1.0";
+          version = "1.1.0";
           src = ./.;
           cargoLock.lockFile = ./Cargo.lock;
 
